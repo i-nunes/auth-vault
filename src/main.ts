@@ -10,6 +10,7 @@ async function bootstrap() {
       transform: true, // <-- auto-transforms plain objects to DTO class instances
     }),
   );
+  app.enableCors();
   await app.listen(process.env.PORT ?? 3000);
 }
 
