@@ -17,7 +17,9 @@ describe('Auth Integration Tests', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
     dataSource = app.get(DataSource);
   });
@@ -32,8 +34,10 @@ describe('Auth Integration Tests', () => {
     if (!entities.length) return;
 
     const tableNames = entities.map((entity) => entity.tableName).join(', ');
-    
-    await dataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`);
+
+    await dataSource.query(
+      `TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`,
+    );
   });
 
   describe('POST /auth/register', () => {
@@ -41,9 +45,9 @@ describe('Auth Integration Tests', () => {
       const payload = {
         email: `test-${Date.now()}@example.com`,
         password: 'password123',
-        role: 'admin'
+        role: 'admin',
       };
-      
+
       const response = await request(app.getHttpServer())
         .post('/auth/register')
         .send(payload)
@@ -66,9 +70,9 @@ describe('Auth Integration Tests', () => {
       const payload = {
         email: `test-${Date.now()}@example.com`,
         password: 'password123',
-        role: 'admin'
+        role: 'admin',
       };
-      
+
       const response = await request(app.getHttpServer())
         .post('/auth/register')
         .send(payload)
@@ -80,9 +84,9 @@ describe('Auth Integration Tests', () => {
       const payload = {
         email: `test-${Date.now()}@example.com`,
         password: 'password123',
-        role: 'admin'
+        role: 'admin',
       };
-      
+
       await request(app.getHttpServer())
         .post('/auth/register')
         .send(payload)
@@ -97,9 +101,9 @@ describe('Auth Integration Tests', () => {
       const payload = {
         email: 'invalid-email',
         password: 'password123',
-        role: 'admin'
+        role: 'admin',
       };
-      
+
       await request(app.getHttpServer())
         .post('/auth/register')
         .send(payload)
@@ -109,19 +113,19 @@ describe('Auth Integration Tests', () => {
       const payload = {
         email: `test-${Date.now()}@example.com`,
         password: '123',
-        role: 'admin'
+        role: 'admin',
       };
-      
+
       await request(app.getHttpServer())
         .post('/auth/register')
         .send(payload)
         .expect(400);
-              
+
       await request(app.getHttpServer())
         .post('/auth/register')
         .send({
           ...payload,
-          password: ''
+          password: '',
         })
         .expect(400);
     });
@@ -132,9 +136,9 @@ describe('Auth Integration Tests', () => {
       const payload = {
         email: `test-${Date.now()}@example.com`,
         password: 'password123',
-        role: 'admin'
+        role: 'admin',
       };
-      
+
       await request(app.getHttpServer())
         .post('/auth/register')
         .send(payload)
@@ -144,20 +148,14 @@ describe('Auth Integration Tests', () => {
         .post('/auth/login')
         .send({
           email: payload.email,
-          password: payload.password
+          password: payload.password,
         })
         .expect(200);
       const jwtService = app.get(JwtService);
 
       expect(response.body).toHaveProperty('accessToken');
 
-      const accessPayload = jwtService.verify(response.body.accessToken) as {
-        sub: string;
-        email: string;
-        role: string;
-        iat: number;
-        exp: number;
-      };
+      const accessPayload = jwtService.verify(response.body.accessToken);
 
       expect(response.body).toHaveProperty('refreshToken');
       expect(typeof response.body.refreshToken).toBe('string');
@@ -170,35 +168,35 @@ describe('Auth Integration Tests', () => {
     it.todo('should return a long-lived refresh token stored in the DB');
     it('should return 401 when the password is wrong', async () => {
       const payload = {
-        email: "test@example.com",
-        password: "wrongpassword"
-      }
+        email: 'test@example.com',
+        password: 'wrongpassword',
+      };
       await request(app.getHttpServer())
         .post('/auth/register')
         .send({
           ...payload,
-          role: 'admin'
+          role: 'admin',
         })
         .expect(200);
       const response = await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ ...payload, password: "notcorrect" })
+        .send({ ...payload, password: 'notcorrect' })
         .expect(401);
-      
+
       expect(response.body).toHaveProperty('message');
       expect(response.body.message).toBe('Invalid credentials');
     });
     it('should return 401 when the email does not exist', async () => {
       const payload = {
-        email: "nonexistent@example.com",
-        password: "password123"
-      }
-      
+        email: 'nonexistent@example.com',
+        password: 'password123',
+      };
+
       const response = await request(app.getHttpServer())
         .post('/auth/login')
         .send(payload)
         .expect(401);
-      
+
       expect(response.body).toHaveProperty('message');
       expect(response.body.message).toBe('Invalid credentials');
     });

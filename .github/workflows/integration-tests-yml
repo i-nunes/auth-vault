@@ -1,0 +1,85 @@
+name: Integration Tests
+run-name: ${{ github.actor }} is running integration tests
+on: 
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+    
+jobs:
+  run-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running unit tests..."
+      - uses: actions/checkout@v6
+      - name: Use node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Unit Tests and Coverage
+        run: npm run test:cov
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const coverageSummary = JSON.parse(fs.readFileSync('./coverage/coverage-summary.json', 'utf8'));
+            const statements = coverageSummary.total.statements.pct;
+            const branches = coverageSummary.total.branches.pct;
+            const functions = coverageSummary.total.functions.pct;
+            const lines = coverageSummary.total.lines.pct;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Unit Test Coverage\n\n| Metric | Coverage |\n|--------|----------|\n| Statements | ${statements}% |\n| Branches | ${branches}% |\n| Functions | ${functions}% |\n| Lines | ${lines}% |`
+            })
+  run-integration-tests:
+    needs: run-unit-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.DB_NAME }}
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - run: echo "Running integration tests..."
+      - uses: actions/checkout@v6
+      - name: Use node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run database migrations
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: npm run migration:run
+      - name: Run Integration tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+        run: npm run test:e2e
