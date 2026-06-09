@@ -1,14 +1,12 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import { hashPassword, stripSensitiveUserFields, verifyPassword } from './helpers';
-import { UserRole } from 'src/users/user.entity';
+import { UserRole } from '../users/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import type { StringValue } from 'ms';
-
-type SafeUser = ReturnType<typeof stripSensitiveUserFields>;
 
 @Injectable()
 export class AuthService {
@@ -47,10 +45,10 @@ export class AuthService {
     return { accessToken, refreshToken, userUUID: user.id };
   }
 
-  async register(dto: RegisterDto): Promise<SafeUser> {
+  async register(dto: RegisterDto): Promise<{ message: string }> {
     const existing = await this.usersService.findByEmail(dto.email);
     if (existing) {
-      throw new ConflictException('User already exists');
+      return { "message": 'Check your email for confirmation' };
     }
     
     const hash = hashPassword(dto.password);
@@ -61,6 +59,8 @@ export class AuthService {
       role: dto.role as UserRole,
     });
     
-    return stripSensitiveUserFields(user);
+    return {
+      "message": 'Check your email for confirmation',
+    };
   }
 }

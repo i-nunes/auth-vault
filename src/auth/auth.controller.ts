@@ -14,7 +14,7 @@ export class AuthController {
   }
 
   @Post('register')
-  @HttpCode(201)
+  @HttpCode(200)
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }

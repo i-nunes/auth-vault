@@ -1,39 +1,207 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { AppModule } from '../src/app.module';
+import { DataSource } from 'typeorm';
+import request from 'supertest';
+import { User } from '../src/users/user.entity';
+import { ValidationPipe } from '@nestjs/common';
 
 describe('Auth Integration Tests', () => {
   let app: INestApplication;
+  let dataSource: DataSource;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      // TODO: Import AppModule once it's created
-      imports: [],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
+    dataSource = app.get(DataSource);
   });
 
   afterAll(async () => {
     await app.close();
   });
 
+  beforeEach(async () => {
+    // Truncate db table before each test to ensure test isolation
+    const entities = dataSource.entityMetadatas;
+    if (!entities.length) return;
+
+    const tableNames = entities.map((entity) => entity.tableName).join(', ');
+    
+    await dataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`);
+  });
+
   describe('POST /auth/register', () => {
-    it.todo('should register a new user and return 201');
-    it.todo('should hash the password and never expose it in the response');
-    it.todo('should return 409 when the email is already taken');
-    it.todo('should retun 400 when the email format is invalid');
-    it.todo('should return 400 when the password is missing or too short');
+    it('should register a new user and return 200', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin'
+      };
+      
+      const response = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        message: 'Check your email for confirmation',
+      });
+
+      // persistence assertions
+      const repo = dataSource.getRepository(User);
+      const saved = await repo.findOneBy({ email: payload.email });
+      expect(saved).toBeTruthy();
+      expect(saved?.isActive).toBe(true);
+      expect(saved?.role).toBe(payload.role);
+      expect(saved?.passwordHash).toBeDefined();
+      expect(saved?.passwordHash).not.toBe(payload.password);
+    });
+    it('should hash the password and never expose it in the response', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin'
+      };
+      
+      const response = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      expect(response.body).not.toHaveProperty('passwordHash');
+    });
+    it('should return successful register response when the email is already taken', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin'
+      };
+      
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+    });
+    it('should retun 400 when the email format is invalid', async () => {
+      const payload = {
+        email: 'invalid-email',
+        password: 'password123',
+        role: 'admin'
+      };
+      
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(400);
+    });
+    it('should return 400 when the password is missing or too short', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: '123',
+        role: 'admin'
+      };
+      
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(400);
+              
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          ...payload,
+          password: ''
+        })
+        .expect(400);
+    });
   });
 
   describe('POST /auth/login', () => {
-    it.todo(
-      'should return an access token and a refresh token on valid credentials',
-    );
+    it('should return an access token and a refresh token on valid credentials', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin'
+      };
+      
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          email: payload.email,
+          password: payload.password
+        })
+        .expect(200);
+      const jwtService = app.get(JwtService);
+
+      expect(response.body).toHaveProperty('accessToken');
+
+      const accessPayload = jwtService.verify(response.body.accessToken) as {
+        sub: string;
+        email: string;
+        role: string;
+        iat: number;
+        exp: number;
+      };
+
+      expect(response.body).toHaveProperty('refreshToken');
+      expect(typeof response.body.refreshToken).toBe('string');
+      expect(accessPayload.sub).toBeDefined();
+      expect(accessPayload.email).toBe(payload.email);
+      expect(accessPayload.role).toBe(payload.role);
+      expect(accessPayload.iat).toBeLessThan(accessPayload.exp);
+    });
     it.todo('should return a short-lived access token');
     it.todo('should return a long-lived refresh token stored in the DB');
-    it.todo('should return 401 when the password is wrong');
-    it.todo('should return 401 when the email does not exist');
+    it('should return 401 when the password is wrong', async () => {
+      const payload = {
+        email: "test@example.com",
+        password: "wrongpassword"
+      }
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          ...payload,
+          role: 'admin'
+        })
+        .expect(200);
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ ...payload, password: "notcorrect" })
+        .expect(401);
+      
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toBe('Invalid credentials');
+    });
+    it('should return 401 when the email does not exist', async () => {
+      const payload = {
+        email: "nonexistent@example.com",
+        password: "password123"
+      }
+      
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send(payload)
+        .expect(401);
+      
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toBe('Invalid credentials');
+    });
   });
 
   describe('POST /auth/refresh', () => {
