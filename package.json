@@ -90,6 +90,7 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "collectCoverage": true,
+    "coverageReporters": ["json-summary", "text", "lcov"],
     "coverageThreshold": {
       "global": {
         "statements": 75,

@@ -1,5 +1,5 @@
-name: Integration Tests
-run-name: ${{ github.actor }} is running integration tests
+name: CI Tests
+run-name: ${{ github.actor }} is running tests
 on: 
   pull_request:
     types: [opened, reopened, synchronize]
@@ -14,7 +14,6 @@ jobs:
   run-unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Running unit tests..."
       - uses: actions/checkout@v6
       - name: Use node.js
         uses: actions/setup-node@v4
