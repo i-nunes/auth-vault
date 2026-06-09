@@ -1,15 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UsersService } from './users.service';
-import { User, UserRole } from './user.entity';
+import { UsersService } from '../users.service';
+import { User, UserRole } from '../user.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
   let mockRepository: jest.Mocked<Repository<User>>;
 
   const mockUser: User = {
-    id: 1,
+    id: '123e4567-e89b-12d3-a456-426614174000',
     email: 'test@example.com',
     passwordHash: 'hashedpassword',
     role: UserRole.USER,
@@ -47,18 +47,18 @@ describe('UsersService', () => {
     it('should return a user when found', async () => {
       mockRepository.findOneBy.mockResolvedValue(mockUser);
 
-      const result = await service.findById(1);
+      const result = await service.findById('123e4567-e89b-12d3-a456-426614174000');
 
-      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 1 });
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: '123e4567-e89b-12d3-a456-426614174000' });
       expect(result).toEqual(mockUser);
     });
 
     it('should return null when user not found', async () => {
       mockRepository.findOneBy.mockResolvedValue(null);
 
-      const result = await service.findById(999);
+      const result = await service.findById('999e4567-e89b-12d3-a456-426614174999');
 
-      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 999 });
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: '999e4567-e89b-12d3-a456-426614174999' });
       expect(result).toBeNull();
     });
   });
@@ -69,7 +69,9 @@ describe('UsersService', () => {
 
       const result = await service.findByEmail('test@example.com');
 
-      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ email: 'test@example.com' });
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({
+        email: 'test@example.com',
+      });
       expect(result).toEqual(mockUser);
     });
 
@@ -78,7 +80,9 @@ describe('UsersService', () => {
 
       const result = await service.findByEmail('nonexistent@example.com');
 
-      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ email: 'nonexistent@example.com' });
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({
+        email: 'nonexistent@example.com',
+      });
       expect(result).toBeNull();
     });
   });
@@ -106,9 +110,9 @@ describe('UsersService', () => {
     it('should delete a user by id', async () => {
       mockRepository.delete.mockResolvedValue({ affected: 1, raw: {} });
 
-      await service.remove(1);
+      await service.remove('123e4567-e89b-12d3-a456-426614174000');
 
-      expect(mockRepository.delete).toHaveBeenCalledWith(1);
+      expect(mockRepository.delete).toHaveBeenCalledWith('123e4567-e89b-12d3-a456-426614174000');
     });
   });
 });
