@@ -23,7 +23,10 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts"
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
+    "migration:run:test": "dotenv -e .env.test -- typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+    "migration:revert:test": "dotenv -e .env.test -- typeorm-ts-node-commonjs migration:revert -d src/data-source.ts",
+    "migration:generate:test": "dotenv -e .env.test -- typeorm-ts-node-commonjs migration:generate -d src/data-source.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -52,6 +55,7 @@
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
     "axios": "^1.17.0",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

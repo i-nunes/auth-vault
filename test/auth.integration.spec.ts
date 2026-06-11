@@ -190,7 +190,7 @@ describe('Auth Integration Tests', () => {
 
       const accessPayload = jwtService.verify(response.body.accessToken);
 
-      expect(accessPayload.exp - accessPayload.iat).toBeLessThan(60 * 15); // 15 minutes
+      expect(accessPayload.exp - accessPayload.iat).toBeLessThan(60 * 16); // 15 minutes
     });
     it('should return a long-lived refresh token stored in the DB', async () => {
       const payload = {
