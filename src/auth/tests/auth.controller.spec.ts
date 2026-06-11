@@ -12,6 +12,8 @@ describe('AuthController', () => {
   const mockAuthService = {
     login: jest.fn(),
     register: jest.fn(),
+    refresh: jest.fn(),
+    logout: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -79,6 +81,38 @@ describe('AuthController', () => {
       expect(authService.register).toHaveBeenCalledWith(registerDto);
       expect(authService.register).toHaveBeenCalledTimes(1);
       expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('refresh', () => {
+    it('should call authService.refresh with refresh token', async () => {
+      const refreshToken = 'token-id.raw-token';
+      const expectedResult = {
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      };
+
+      mockAuthService.refresh.mockResolvedValue(expectedResult);
+
+      const result = await controller.refresh(refreshToken);
+
+      expect(authService.refresh).toHaveBeenCalledWith(refreshToken);
+      expect(authService.refresh).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('logout', () => {
+    it('should call authService.logout with refresh token', async () => {
+      const refreshToken = 'token-id.raw-token';
+
+      mockAuthService.logout.mockResolvedValue(undefined);
+
+      const result = await controller.logout(refreshToken);
+
+      expect(authService.logout).toHaveBeenCalledWith(refreshToken);
+      expect(authService.logout).toHaveBeenCalledTimes(1);
+      expect(result).toBeUndefined();
     });
   });
 });

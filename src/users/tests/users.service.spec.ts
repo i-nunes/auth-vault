@@ -47,18 +47,26 @@ describe('UsersService', () => {
     it('should return a user when found', async () => {
       mockRepository.findOneBy.mockResolvedValue(mockUser);
 
-      const result = await service.findById('123e4567-e89b-12d3-a456-426614174000');
+      const result = await service.findById(
+        '123e4567-e89b-12d3-a456-426614174000',
+      );
 
-      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: '123e4567-e89b-12d3-a456-426614174000' });
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({
+        id: '123e4567-e89b-12d3-a456-426614174000',
+      });
       expect(result).toEqual(mockUser);
     });
 
     it('should return null when user not found', async () => {
       mockRepository.findOneBy.mockResolvedValue(null);
 
-      const result = await service.findById('999e4567-e89b-12d3-a456-426614174999');
+      const result = await service.findById(
+        '999e4567-e89b-12d3-a456-426614174999',
+      );
 
-      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: '999e4567-e89b-12d3-a456-426614174999' });
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({
+        id: '999e4567-e89b-12d3-a456-426614174999',
+      });
       expect(result).toBeNull();
     });
   });
@@ -112,7 +120,9 @@ describe('UsersService', () => {
 
       await service.remove('123e4567-e89b-12d3-a456-426614174000');
 
-      expect(mockRepository.delete).toHaveBeenCalledWith('123e4567-e89b-12d3-a456-426614174000');
+      expect(mockRepository.delete).toHaveBeenCalledWith(
+        '123e4567-e89b-12d3-a456-426614174000',
+      );
     });
   });
 });
