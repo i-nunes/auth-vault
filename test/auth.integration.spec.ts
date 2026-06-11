@@ -5,6 +5,7 @@ import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
 import request from 'supertest';
 import { User } from '../src/users/user.entity';
+import { RefreshToken } from '../src/auth/refresh-token.entity';
 import { ValidationPipe } from '@nestjs/common';
 
 describe('Auth Integration Tests', () => {
@@ -164,8 +165,56 @@ describe('Auth Integration Tests', () => {
       expect(accessPayload.role).toBe(payload.role);
       expect(accessPayload.iat).toBeLessThan(accessPayload.exp);
     });
-    it.todo('should return a short-lived access token');
-    it.todo('should return a long-lived refresh token stored in the DB');
+    it('should return a short-lived access token', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          email: payload.email,
+          password: payload.password,
+        })
+        .expect(200);
+      const jwtService = app.get(JwtService);
+
+      expect(response.body).toHaveProperty('accessToken');
+
+      const accessPayload = jwtService.verify(response.body.accessToken);
+
+      expect(accessPayload.exp - accessPayload.iat).toBeLessThan(60 * 16); // 15 minutes
+    });
+    it('should return a long-lived refresh token stored in the DB', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          email: payload.email,
+          password: payload.password,
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('refreshToken');
+      expect(typeof response.body.refreshToken).toBe('string');
+    });
     it('should return 401 when the password is wrong', async () => {
       const payload = {
         email: 'test@example.com',
@@ -203,21 +252,234 @@ describe('Auth Integration Tests', () => {
   });
 
   describe('POST /auth/refresh', () => {
-    it.todo('should return a new access token given a valid refresh token');
-    it.todo('should rotate the refresh token - old one must be invalidated');
-    it.todo('should return 401 when the refresh token is expired');
-    it.todo(
-      'should return 401 when the refresh token has already been used (replay attack)',
-    );
-    it.todo('should return 401 when no refresh token is provided');
+    it('should return a new access token given a valid refresh token', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const loginResponse = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({
+          email: payload.email,
+          password: payload.password,
+        })
+        .expect(200);
+
+      const refreshToken = loginResponse.body.refreshToken;
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({
+          refreshToken,
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('accessToken');
+      expect(typeof response.body.accessToken).toBe('string');
+    });
+    it('should rotate the refresh token - old one must be invalidated', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+        .expect(200);
+
+      const oldRefresh = loginRes.body.refreshToken as string;
+      const [oldId] = oldRefresh.split('.');
+
+      // First refresh: rotate successfully
+      const rotateRes = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: oldRefresh })
+        .expect(200);
+
+      expect(rotateRes.body).toHaveProperty('accessToken');
+      expect(rotateRes.body).toHaveProperty('refreshToken');
+
+      // Old token cannot be used again
+      const reuseRes = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: oldRefresh })
+        .expect(401);
+      expect(reuseRes.body).toHaveProperty('message');
+
+      // DB: old token marked used
+      const rtRepo = dataSource.getRepository(RefreshToken);
+      const oldTokenRow = await rtRepo.findOne({ where: { id: oldId } });
+      expect(oldTokenRow).toBeTruthy();
+      expect(oldTokenRow?.usedAt).not.toBeNull();
+    });
+
+    it('should return 401 when the refresh token is expired', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+        .expect(200);
+
+      const refreshToken = loginRes.body.refreshToken as string;
+      const [tokenId] = refreshToken.split('.');
+
+      // Force expiration in DB
+      await dataSource
+        .getRepository(RefreshToken)
+        .update({ id: tokenId }, { expiresAt: new Date(Date.now() - 60_000) });
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+
+      expect(res.body).toHaveProperty('message');
+      expect(res.body.message).toBe('Refresh token expired');
+    });
+
+    it('should return 401 when the refresh token has already been used (replay attack)', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+        .expect(200);
+
+      const oldRefresh = loginRes.body.refreshToken as string;
+
+      // First refresh succeeds and returns a new token (same family)
+      const firstRotation = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: oldRefresh })
+        .expect(200);
+      const newRefresh = firstRotation.body.refreshToken as string;
+      const [newId] = newRefresh.split('.');
+
+      // Replay: using old token again triggers family revocation and 401
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: oldRefresh })
+        .expect(401);
+
+      // The new token from the same family should now also be invalid
+      const res = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken: newRefresh })
+        .expect(401);
+      expect(res.body).toHaveProperty('message');
+
+      // DB: new token should be revoked
+      const rtRepo = dataSource.getRepository(RefreshToken);
+      const newTokenRow = await rtRepo.findOne({ where: { id: newId } });
+      expect(newTokenRow?.isRevoked).toBe(true);
+    });
+
+    it('should return 401 when no refresh token is provided', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({})
+        .expect(401);
+      expect(res.body).toHaveProperty('message');
+      expect(res.body.message).toBe('Invalid token');
+    });
   });
 
   describe('POST /auth/logout', () => {
-    it.todo('should invalidate the refresh token and return 200');
-    it.todo('should return 401 when called without a valid access token');
-    it.todo(
-      'should prevent the invalidated refresh token from being used again',
-    );
+    it('should invalidate the refresh token and return 200', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+        .expect(200);
+
+      const refreshToken = loginRes.body.refreshToken as string;
+      const [tokenId] = refreshToken.split('.');
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .send({ refreshToken })
+        .expect(200);
+
+      // DB: token is revoked
+      const rtRepo = dataSource.getRepository(RefreshToken);
+      const row = await rtRepo.findOne({ where: { id: tokenId } });
+      expect(row?.isRevoked).toBe(true);
+    });
+
+    // Guard requirement will be added in Phase 4
+    it('should prevent the invalidated refresh token from being used again', async () => {
+      const payload = {
+        email: `test-${Date.now()}@example.com`,
+        password: 'password123',
+        role: 'admin',
+      };
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(payload)
+        .expect(200);
+
+      const loginRes = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+        .expect(200);
+
+      const refreshToken = loginRes.body.refreshToken as string;
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .send({ refreshToken })
+        .expect(200);
+
+      // Using the same refresh token should now fail
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+    });
   });
 
   describe('GET /users/me', () => {

@@ -1,4 +1,8 @@
-import { hashPassword, verifyPassword, stripSensitiveUserFields } from '../helpers';
+import {
+  hashPassword,
+  verifyPassword,
+  stripSensitiveUserFields,
+} from '../helpers';
 import { User, UserRole } from '../../users/user.entity';
 import bcrypt from 'bcrypt';
 
@@ -81,7 +85,10 @@ describe('Auth Helpers', () => {
       const result = stripSensitiveUserFields(user);
 
       expect(result).not.toHaveProperty('passwordHash');
-      expect(result).toHaveProperty('id', '123e4567-e89b-12d3-a456-426614174000');
+      expect(result).toHaveProperty(
+        'id',
+        '123e4567-e89b-12d3-a456-426614174000',
+      );
       expect(result).toHaveProperty('email', 'test@example.com');
       expect(result).toHaveProperty('role', UserRole.USER);
       expect(result).toHaveProperty('isActive', true);
